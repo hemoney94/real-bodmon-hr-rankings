@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real Bodmon HR Rankings v2</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #151c31;
+      --panel2: #1c2540;
+      --text: #f6f7fb;
+      --muted: #aeb8d0;
+      --accent: #f2b84b;
+      --good: #58d68d;
+      --bad: #ff7b7b;
+      --border: #2a3555;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #090d19, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px; }
+    h1 { margin: 0 0 6px; font-size: clamp(25px, 5vw, 42px); }
+    .subtitle { color: var(--muted); margin-bottom: 22px; }
+    .card {
+      background: rgba(21, 28, 49, .96);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 12px 35px rgba(0,0,0,.24);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(230px, 1fr) 180px auto;
+      gap: 12px;
+      align-items: end;
+    }
+    label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+    input, button, select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 12px;
+      font-size: 15px;
+    }
+    input, select { color: var(--text); background: var(--panel2); }
+    button {
+      color: #111;
+      background: var(--accent);
+      border: 0;
+      font-weight: 750;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .note, .status { color: var(--muted); line-height:1.45; font-size:14px; }
+    .status { margin-top: 12px; }
+    .error { color: var(--bad); white-space: pre-wrap; }
+    .summary {
+      display:grid;
+      grid-template-columns: repeat(4, minmax(120px,1fr));
+      gap:10px;
+    }
+    .metric {
+      background:var(--panel2);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+    }
+    .metric b { display:block; font-size:22px; margin-top:4px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width: 900px; }
+    th, td { padding:11px 9px; border-bottom:1px solid var(--border); text-align:left; }
+    th {
+      color:var(--muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      position:sticky;
+      top:0;
+      background:var(--panel);
+    }
+    td.num { text-align:right; font-variant-numeric:tabular-nums; }
+    th.num { text-align:right; }
+    .elite { color:#ffd166; font-weight:800; }
+    .top { color:#ff9f43; font-weight:750; }
+    .sneaky { color:#58d68d; font-weight:750; }
+    .neutral { color:var(--muted); }
+    .pill {
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:999px;
+      background:var(--panel2);
+      border:1px solid var(--border);
+      font-size:12px;
+    }
+    details { margin-top:12px; }
+    code { color:#ffd166; overflow-wrap:anywhere; }
+    @media (max-width: 760px) {
+      .controls { grid-template-columns:1fr; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .wrap { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💣 Real Bodmon HR Rankings <span style="font-size:.42em;color:var(--muted);vertical-align:middle">v2</span></h1>
+  <div class="subtitle">Ranks today’s hitters using pitcher matchup probability plus hitter-specific park and weather factors.</div>
+
+  <div class="card">
+    <div class="controls">
+      <div>
+        <label for="apiKey">Ballpark Pal API key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your newly generated API key" />
+      </div>
+      <div>
+        <label for="date">Slate date</label>
+        <input id="date" type="date" />
+      </div>
+      <div>
+        <button id="runBtn">Load HR Rankings</button>
+      </div>
+    </div>
+    <div class="status" id="status">Your key stays in this browser tab and is sent only to Ballpark Pal. For best results, open this file directly in Safari.</div>
+    <details>
+      <summary class="note">How the ranking works</summary>
+      <p class="note">
+        The page pulls all games, all batter-vs-starting-pitcher matchups, hitter park/weather factors,
+        and game projections. The primary score is the matchup HR probability multiplied by the player’s
+        HR park factor. When a matchup probability is unavailable, it estimates 1+ HR probability from
+        projected home runs and then applies the park factor.
+      </p>
+    </details>
+  </div>
+
+  <div class="card" id="summaryCard" hidden>
+    <div class="summary">
+      <div class="metric"><span class="note">Games</span><b id="gamesCount">—</b></div>
+      <div class="metric"><span class="note">Hitters ranked</span><b id="hittersCount">—</b></div>
+      <div class="metric"><span class="note">Official lineups</span><b id="officialStatus">—</b></div>
+      <div class="metric"><span class="note">Updated</span><b id="updatedAt" style="font-size:15px">—</b></div>
+    </div>
+  </div>
+
+  <div class="card" id="resultsCard" hidden>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Verdict</th>
+            <th>Player</th>
+            <th>Team</th>
+            <th class="num">Bat Pos.</th>
+            <th class="num">Pitcher Matchup HR%</th>
+            <th class="num">Park/Weather Factor</th>
+            <th class="num">Adjusted HR%</th>
+            <th class="num">Projected HR</th>
+            <th class="num">Vs Typical</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = "https://www.ballparkpal.com/api/v1";
+const $ = id => document.getElementById(id);
+
+function localISODate() {
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  return new Date(d.getTime() - offset * 60000).toISOString().slice(0,10);
+}
+$("date").value = localISODate();
+try {
+  $("apiKey").value = sessionStorage.getItem("ballparkPalApiKey") || "";
+} catch {}
+
+function setStatus(message, isError=false) {
+  $("status").textContent = message;
+  $("status").className = isError ? "status error" : "status";
+}
+
+async function api(path, key) {
+  const response = await fetch("/.netlify/functions/ballpark-proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, apiKey: key })
+  });
+
+  const text = await response.text();
+  let payload;
+  try { payload = text ? JSON.parse(text) : {}; }
+  catch { throw new Error("The proxy returned invalid JSON."); }
+
+  if (!response.ok) {
+    const message = payload?.error || payload?.message || text.slice(0, 500);
+    throw new Error(`${response.status} ${response.statusText}${message ? `\n${message}` : ""}`);
+  }
+  return payload;
+}
+
+function dataArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.items)) return payload.items;
+  return [];
+}
+
+function normalizeKey(k) {
+  return String(k).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function findNumeric(obj, candidates) {
+  if (!obj) return null;
+  const entries = Object.entries(obj);
+  for (const wanted of candidates) {
+    const exact = entries.find(([k,v]) => normalizeKey(k) === normalizeKey(wanted) && Number.isFinite(Number(v)));
+    if (exact) return Number(exact[1]);
+  }
+  return null;
+}
+
+function findHRProbability(obj) {
+  const direct = findNumeric(obj, [
+    "homeRunProbability", "homeRunsProbability", "hrProbability",
+    "homeRunPct", "homeRunsPct", "hrPct", "homeRun"
+  ]);
+  if (direct !== null) return direct;
+
+  for (const [k,v] of Object.entries(obj || {})) {
+    const nk = normalizeKey(k);
+    if ((nk.includes("homerun") || nk.startsWith("hr")) &&
+        (nk.includes("prob") || nk.includes("percent") || nk.includes("pct")) &&
+        Number.isFinite(Number(v))) return Number(v);
+  }
+  return null;
+}
+
+function findVsTypical(obj) {
+  const direct = findNumeric(obj, [
+    "homeRunVsTypical", "homeRunsVsTypical", "hrVsTypical"
+  ]);
+  if (direct !== null) return direct;
+  for (const [k,v] of Object.entries(obj || {})) {
+    const nk = normalizeKey(k);
+    if ((nk.includes("homerun") || nk.startsWith("hr")) &&
+        nk.includes("vstypical") && Number.isFinite(Number(v))) return Number(v);
+  }
+  return null;
+}
+
+function playerIdOf(obj) {
+  return obj?.playerId ?? obj?.batterId ?? obj?.subject?.id ?? null;
+}
+
+function pctFromAverage(hrAverage) {
+  if (!Number.isFinite(hrAverage)) return null;
+  return (1 - Math.exp(-Math.max(0, hrAverage))) * 100;
+}
+
+function verdict(pct, rank) {
+  if (rank <= 3 || pct >= 30) return ["💣 Elite", "elite"];
+  if (rank <= 10 || pct >= 24) return ["🔥 Top", "top"];
+  if (rank <= 20 || pct >= 19) return ["🧨 Sneaky", "sneaky"];
+  return ["⚠️ Neutral", "neutral"];
+}
+
+function fmt(n, digits=1, suffix="") {
+  return Number.isFinite(n) ? n.toFixed(digits) + suffix : "—";
+}
+
+async function run() {
+  const key = $("apiKey").value.trim();
+  const date = $("date").value;
+  try { sessionStorage.setItem("ballparkPalApiKey", key); } catch {}
+  if (!key) return setStatus("Paste your API key first.", true);
+  if (!date) return setStatus("Select a date.", true);
+
+  $("runBtn").disabled = true;
+  $("summaryCard").hidden = true;
+  $("resultsCard").hidden = true;
+
+  try {
+    setStatus("Loading today’s games…");
+    const [gamesPayload, matchupsPayload] = await Promise.all([
+      api(`/games?date=${encodeURIComponent(date)}`, key),
+      api(`/matchups?date=${encodeURIComponent(date)}&starters=true`, key)
+    ]);
+
+    const games = dataArray(gamesPayload);
+    const matchups = dataArray(matchupsPayload);
+    const parks = [];
+
+    if (!games.length) throw new Error("No games were returned for this date.");
+
+    const parkByPlayerGame = new Map();
+
+    const matchupByPlayerGame = new Map();
+    for (const m of matchups) {
+      matchupByPlayerGame.set(`${m.gameId}:${playerIdOf(m)}`, m);
+    }
+
+    const all = [];
+    let officialCount = 0;
+    let completed = 0;
+
+    const concurrency = 5;
+    for (let i = 0; i < games.length; i += concurrency) {
+      const batch = games.slice(i, i + concurrency);
+      const payloads = await Promise.all(batch.map(async g => {
+        const [projectionPayload, parkPayload] = await Promise.all([
+          api(`/projections/averages?gameId=${encodeURIComponent(g.gameId)}`, key),
+          api(`/parkfactors/hitters?gameId=${encodeURIComponent(g.gameId)}`, key)
+        ]);
+        return { projectionPayload, parkPayload };
+      }));
+
+      payloads.forEach(({ projectionPayload: payload, parkPayload }, idx) => {
+        const game = batch[idx];
+        for (const park of dataArray(parkPayload)) {
+          parkByPlayerGame.set(`${game.gameId}:${playerIdOf(park)}`, park);
+        }
+        if (payload?.meta?.lineupsOfficial) officialCount++;
+        const batters = payload?.data?.batters || [];
+        for (const b of batters) {
+          const id = playerIdOf(b);
+          const m = matchupByPlayerGame.get(`${game.gameId}:${id}`);
+          const p = parkByPlayerGame.get(`${game.gameId}:${id}`);
+
+          let matchupPct = findHRProbability(m);
+          // Ballpark Pal matchup probabilities are documented as percentages.
+          if (matchupPct !== null && matchupPct <= 1) matchupPct *= 100;
+
+          const projectedHR = Number(b.homeRuns);
+          const fallbackPct = pctFromAverage(projectedHR);
+          const basePct = matchupPct ?? fallbackPct;
+
+          const parkFactor = Number.isFinite(Number(p?.homeRuns)) ? Number(p.homeRuns) : 1;
+          const adjustedPct = Number.isFinite(basePct)
+            ? Math.min(99.9, Math.max(0, basePct * parkFactor))
+            : null;
+
+          all.push({
+            gameId: game.gameId,
+            playerName: b.playerName,
+            team: b.team,
+            battingPosition: Number(b.battingPosition),
+            projectedHR,
+            matchupPct,
+            parkFactor,
+            adjustedPct,
+            vsTypical: findVsTypical(m)
+          });
+        }
+      });
+
+      completed += batch.length;
+      setStatus(`Loaded ${completed} of ${games.length} games…`);
+    }
+
+    all.sort((a,b) =>
+      (b.adjustedPct ?? -1) - (a.adjustedPct ?? -1) ||
+      (b.projectedHR ?? -1) - (a.projectedHR ?? -1)
+    );
+
+    const tbody = $("tbody");
+    tbody.innerHTML = "";
+    all.slice(0, 75).forEach((r, index) => {
+      const rank = index + 1;
+      const [label, cls] = verdict(r.adjustedPct ?? 0, rank);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><b>${rank}</b></td>
+        <td class="${cls}">${label}</td>
+        <td><b>${r.playerName || "Unknown"}</b></td>
+        <td><span class="pill">${r.team || "—"}</span></td>
+        <td class="num">${Number.isFinite(r.battingPosition) ? r.battingPosition : "—"}</td>
+        <td class="num">${fmt(r.matchupPct, 1, "%")}</td>
+        <td class="num">${fmt(r.parkFactor, 3, "×")}</td>
+        <td class="num"><b>${fmt(r.adjustedPct, 1, "%")}</b></td>
+        <td class="num">${fmt(r.projectedHR, 3)}</td>
+        <td class="num">${Number.isFinite(r.vsTypical) ? (r.vsTypical > 0 ? "+" : "") + r.vsTypical.toFixed(0) + "%" : "—"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    $("gamesCount").textContent = games.length;
+    $("hittersCount").textContent = all.length;
+    $("officialStatus").textContent = `${officialCount}/${games.length}`;
+    $("updatedAt").textContent = new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+    $("summaryCard").hidden = false;
+    $("resultsCard").hidden = false;
+    setStatus(`Done. Showing the top ${Math.min(75, all.length)} hitters. Refresh later when lineups become official.`);
+  } catch (err) {
+    setStatus(err?.message || String(err), true);
+  } finally {
+    $("runBtn").disabled = false;
+  }
+}
+$("runBtn").addEventListener("click", run);
+</script>
+</body>
+</html>

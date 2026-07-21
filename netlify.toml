@@ -1,0 +1,10 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-store"
