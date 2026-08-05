@@ -1,5 +1,19 @@
 const { getStore } = require("@netlify/blobs");
 
+// Automatic Blobs context injection isn't available in this environment,
+// so the store is configured manually with a Site ID and access token.
+// Set BLOBS_SITE_ID and BLOBS_TOKEN in Netlify's site environment variables
+// (Site configuration > Environment variables). Must match the values used
+// in log-rankings.js, or this function will read from a different store
+// and never find what was logged.
+function backtestStore() {
+  return getStore({
+    name: "backtest",
+    siteID: process.env.BLOBS_SITE_ID,
+    token: process.env.BLOBS_TOKEN
+  });
+}
+
 const SAVANT_CSV = "https://baseballsavant.mlb.com/statcast_search/csv";
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
@@ -116,7 +130,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
   }
   try {
-    const store = getStore("backtest");
+    const store = backtestStore();
     const date = event.queryStringParameters?.date;
     const mode = event.queryStringParameters?.mode || (date ? "date" : "summary");
 
