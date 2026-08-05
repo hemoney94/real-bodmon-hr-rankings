@@ -1,5 +1,17 @@
 const { getStore } = require("@netlify/blobs");
 
+// Automatic Blobs context injection isn't available in this environment,
+// so the store is configured manually with a Site ID and access token.
+// Set BLOBS_SITE_ID and BLOBS_TOKEN in Netlify's site environment variables
+// (Site configuration > Environment variables).
+function backtestStore() {
+  return getStore({
+    name: "backtest",
+    siteID: process.env.BLOBS_SITE_ID,
+    token: process.env.BLOBS_TOKEN
+  });
+}
+
 // Trim each row down to only what the backtest needs. Keeping this small
 // matters because a full slate can be 100+ players and we're writing one
 // blob per day, potentially many times as the user re-runs through the day.
@@ -38,7 +50,7 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "rankings array is empty." }) };
     }
 
-    const store = getStore("backtest");
+    const store = backtestStore();
     const trimmed = rankings.map(trimRow);
 
     // Overwrite on every save for the day. The user typically re-runs a few
